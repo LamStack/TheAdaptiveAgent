@@ -1,9 +1,13 @@
-# The core engine (adaptive_agent.py) has zero required dependencies.
-# It runs on the standard library alone: argparse, json, sqlite3, dataclasses.
-#
+# Required to run the web demo (app.py), which is also what Vercel builds
+# from vercel.json. The core engine (adaptive_agent.py) has zero required
+# dependencies when used directly as a CLI: it runs on the standard
+# library alone (argparse, json, sqlite3, dataclasses).
+flask>=3.0.0
+
 # Optional: install this only if you want the LLM-narration mode
-# (ClaudeReasoner, active automatically when ANTHROPIC_API_KEY is set).
-# It never changes what the agent does, only the wording of the "I changed
-# my mind because ..." trace line. Without it, or if the call fails for any
-# reason, the deterministic rule-based wording is used instead.
+# (ClaudeReasoner, active automatically when ANTHROPIC_API_KEY is set,
+# including as an environment variable on the deployed web demo). It
+# never changes what the agent does, only the wording of the "I changed
+# my mind because ..." trace line. Without it, or if the call fails for
+# any reason, the deterministic rule-based wording is used instead.
 anthropic>=0.40.0

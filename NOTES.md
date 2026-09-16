@@ -57,7 +57,9 @@ silently to the deterministic text on any failure.
   plan. Coordinating contradictions and revisions across multiple
   cooperating agents is a real, harder problem and is not addressed
   here.
-- **A persistent web UI.** The engine persists to SQLite and is driven
-  from a CLI; the published live demo is a separate, browser-based
-  visualization of the same plan, execute, observe, revise loop, not a
-  hosted deployment of `adaptive_agent.py` itself.
+- **SQLite persistence in the deployed web demo.** `app.py` calls the
+  engine with `journal=None`, a serverless function has no durable disk
+  between requests. Persistence is real (see `Journal` in
+  `adaptive_agent.py`) and is demonstrated by the CLI's `--journal-dir`
+  and by `test_persistence_round_trips_state`, just not exercised by the
+  hosted demo's request/response cycle.

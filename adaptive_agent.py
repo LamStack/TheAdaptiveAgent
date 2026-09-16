@@ -645,11 +645,22 @@ SCENARIOS: Dict[str, Scenario] = {
 
 
 @dataclass
+class BeliefSnapshot:
+    assumption_id: str
+    description: str
+    broken: bool
+    consecutive_breaches: int
+    breaches_to_trigger: int
+
+
+@dataclass
 class TraceEntry:
     tick: int
     observation: Observation
     stage_pct: int
     note: str
+    rolled_back: bool = False
+    beliefs: List[BeliefSnapshot] = field(default_factory=list)
 
 
 @dataclass
@@ -709,7 +720,8 @@ def run_static(scenario: Scenario, journal: Optional[Journal] = None) -> RunResu
         if state.stage_pct >= 50:
             worst_error_at_high_stage = max(worst_error_at_high_stage, obs.get("error_rate_pct", 0.0))
 
-        trace.append(TraceEntry(tick=t, observation=obs, stage_pct=state.stage_pct, note=note))
+        trace.append(TraceEntry(tick=t, observation=obs, stage_pct=state.stage_pct, note=note,
+                                  rolled_back=state.rolled_back))
         if journal:
             journal.save_state(scenario.id, "static", plan.version, plan.cursor, False)
 
@@ -806,7 +818,14 @@ def run_adaptive(scenario: Scenario, reasoner: Optional[Reasoner] = None,
         if state.stage_pct >= 50:
             worst_error_at_high_stage = max(worst_error_at_high_stage, obs.get("error_rate_pct", 0.0))
 
-        trace.append(TraceEntry(tick=t, observation=obs, stage_pct=state.stage_pct, note="; ".join(notes)))
+        beliefs = [
+            BeliefSnapshot(assumption_id=aid, description=s.assumption.description, broken=s.broken,
+                             consecutive_breaches=s.consecutive_breaches,
+                             breaches_to_trigger=s.assumption.breaches_to_trigger)
+            for aid, s in world_model.states.items()
+        ]
+        trace.append(TraceEntry(tick=t, observation=obs, stage_pct=state.stage_pct, note="; ".join(notes),
+                                  rolled_back=state.rolled_back, beliefs=beliefs))
         if journal:
             journal.save_state(scenario.id, "adaptive", plan.version, plan.cursor, governor.escalated)
 

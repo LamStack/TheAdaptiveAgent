@@ -1,0 +1,707 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Adaptive Rollout Console</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#F5F7FA; --surface:#FFFFFF; --surface-2:#EEF1F5; --surface-3:#E4E9EF; --border:#DCE2E9;
+    --text-primary:#131A22; --text-secondary:#4B5768; --text-muted:#85909C;
+    --accent:#2F6FE0; --accent-ink:#FFFFFF; --accent-soft:#E4ECFC;
+    --static-ink:#5B6572; --static-soft:#EEF0F3;
+    --good:#0E9F6E; --good-soft:#E3F9EE;
+    --hold:#B5790A; --hold-soft:#FBF0DA;
+    --critical:#D63652; --critical-soft:#FCE6EA;
+    --escalated:#7C4FD1; --escalated-soft:#F0E9FB;
+    --shadow: 0 1px 2px rgba(20,30,45,.06), 0 8px 24px -12px rgba(20,30,45,.14);
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0A0E13; --surface:#121721; --surface-2:#171D28; --surface-3:#1F2733; --border:#2A323D;
+      --text-primary:#E8ECF1; --text-secondary:#9AA7B5; --text-muted:#5C6773;
+      --accent:#4C8DFF; --accent-ink:#08101F; --accent-soft:#152238;
+      --static-ink:#8B95A3; --static-soft:#1B212B;
+      --good:#34D399; --good-soft:#122A22;
+      --hold:#F2B84B; --hold-soft:#2B2211;
+      --critical:#F45B69; --critical-soft:#2E141B;
+      --escalated:#B98CFF; --escalated-soft:#241A38;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 12px 32px -16px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0A0E13; --surface:#121721; --surface-2:#171D28; --surface-3:#1F2733; --border:#2A323D;
+    --text-primary:#E8ECF1; --text-secondary:#9AA7B5; --text-muted:#5C6773;
+    --accent:#4C8DFF; --accent-ink:#08101F; --accent-soft:#152238;
+    --static-ink:#8B95A3; --static-soft:#1B212B;
+    --good:#34D399; --good-soft:#122A22;
+    --hold:#F2B84B; --hold-soft:#2B2211;
+    --critical:#F45B69; --critical-soft:#2E141B;
+    --escalated:#B98CFF; --escalated-soft:#241A38;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 12px 32px -16px rgba(0,0,0,.6);
+  }
+
+  *{ box-sizing:border-box; }
+  html{ color-scheme: light dark; }
+  body{
+    margin:0; background:var(--bg); color:var(--text-primary);
+    font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+    padding: 20px clamp(16px,4vw,40px) 56px;
+  }
+  .mono{ font-family:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace; font-variant-numeric: tabular-nums; }
+  h1,h2,h3{ text-wrap:balance; margin:0; }
+  .wrap{ max-width:1180px; margin:0 auto; display:flex; flex-direction:column; gap:20px; }
+
+  .console-header{
+    display:flex; align-items:flex-start; justify-content:space-between; gap:20px; flex-wrap:wrap;
+    padding-bottom:16px; border-bottom:1px solid var(--border);
+  }
+  .brand-eyebrow{
+    font-family:"IBM Plex Mono"; font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--accent); font-weight:600; margin:0 0 6px;
+  }
+  .brand-title{ font-size:clamp(22px,3vw,28px); font-weight:700; letter-spacing:-.01em; }
+  .brand-sub{ color:var(--text-secondary); font-size:14px; margin-top:6px; max-width:64ch; line-height:1.5; }
+  .service-tag{
+    display:flex; align-items:center; gap:8px; font-family:"IBM Plex Mono"; font-size:12px;
+    color:var(--text-secondary); background:var(--surface-2); border:1px solid var(--border);
+    padding:7px 12px; border-radius:999px; white-space:nowrap;
+  }
+  .dot{ width:7px; height:7px; border-radius:50%; background:var(--good); box-shadow:0 0 0 3px var(--good-soft); }
+  .dot.busy{ background:var(--hold); box-shadow:0 0 0 3px var(--hold-soft); }
+
+  .scenario-row{ display:flex; flex-direction:column; gap:10px; }
+  .row-label{ font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--text-muted); font-weight:600; }
+  .tabs{ display:flex; gap:8px; flex-wrap:wrap; }
+  .tab{
+    font-family:"IBM Plex Sans"; font-size:13.5px; font-weight:500; color:var(--text-secondary);
+    background:var(--surface); border:1px solid var(--border); border-radius:999px;
+    padding:9px 16px; cursor:pointer; transition:border-color .15s, color .15s, background .15s;
+    display:flex; align-items:center; gap:7px;
+  }
+  .tab:hover{ border-color:var(--accent); color:var(--text-primary); }
+  .tab.active{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); font-weight:600; }
+  .tab .badge{
+    font-family:"IBM Plex Mono"; font-size:10px; padding:2px 6px; border-radius:5px; letter-spacing:.03em;
+    background:var(--critical-soft); color:var(--critical); font-weight:600;
+  }
+  .tab.active .badge{ background:rgba(255,255,255,.22); color:var(--accent-ink); }
+  .scenario-summary{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:14px 16px; font-size:13.5px; line-height:1.6; color:var(--text-secondary);
+  }
+
+  .controls{
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:12px 16px; box-shadow:var(--shadow);
+  }
+  .transport{ display:flex; gap:6px; }
+  .btn{
+    font-family:"IBM Plex Sans"; font-weight:600; font-size:13px; cursor:pointer;
+    border:1px solid var(--border); background:var(--surface-2); color:var(--text-primary);
+    border-radius:8px; padding:8px 14px; display:flex; align-items:center; gap:6px;
+    transition:background .15s, border-color .15s, transform .05s;
+  }
+  .btn:hover{ border-color:var(--accent); }
+  .btn:active{ transform:scale(.97); }
+  .btn.primary{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+  .btn:disabled{ opacity:.4; cursor:not-allowed; }
+  .btn:focus-visible, .tab:focus-visible, select:focus-visible, .toggle:focus-visible{
+    outline:2px solid var(--accent); outline-offset:2px;
+  }
+  .sep{ width:1px; align-self:stretch; background:var(--border); }
+  .speed-select{
+    font-family:"IBM Plex Mono"; font-size:12.5px; color:var(--text-primary); background:var(--surface-2);
+    border:1px solid var(--border); border-radius:8px; padding:8px 10px; cursor:pointer;
+  }
+  .tick-readout{
+    font-family:"IBM Plex Mono"; font-size:12.5px; color:var(--text-secondary); margin-left:auto;
+    display:flex; align-items:center; gap:10px;
+  }
+  .tick-readout .n{ color:var(--text-primary); font-weight:600; }
+  .progress-track{ width:120px; height:5px; background:var(--surface-3); border-radius:3px; overflow:hidden; }
+  .progress-fill{ height:100%; background:var(--accent); border-radius:3px; transition:width .15s linear; }
+
+  .toggle-group{ display:flex; align-items:center; gap:9px; }
+  .toggle-label{ font-size:12.5px; color:var(--text-secondary); }
+  .toggle{
+    position:relative; width:38px; height:22px; border-radius:999px; border:1px solid var(--border);
+    background:var(--surface-3); cursor:pointer; flex-shrink:0; padding:0;
+  }
+  .toggle .knob{
+    position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%;
+    background:var(--text-muted); transition:transform .18s ease, background .18s ease;
+  }
+  .toggle.on{ background:var(--good-soft); border-color:var(--good); }
+  .toggle.on .knob{ transform:translateX(16px); background:var(--good); }
+  .toggle.off{ background:var(--critical-soft); border-color:var(--critical); }
+  .toggle.off .knob{ background:var(--critical); }
+  .live-note{ font-size:11.5px; color:var(--text-muted); font-style:italic; width:100%; padding-top:2px; }
+
+  .panels{ display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start; }
+  @media (max-width:860px){ .panels{ grid-template-columns:1fr; } }
+
+  .panel{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    box-shadow:var(--shadow); overflow:hidden; display:flex; flex-direction:column;
+  }
+  .panel-head{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:14px 16px; border-bottom:1px solid var(--border);
+  }
+  .panel-title{ display:flex; align-items:center; gap:9px; }
+  .agent-chip{ width:9px; height:9px; border-radius:50%; }
+  .agent-chip.adaptive{ background:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  .agent-chip.static{ background:var(--static-ink); box-shadow:0 0 0 3px var(--static-soft); }
+  .panel-title h3{ font-size:15px; font-weight:600; }
+  .panel-title .kicker{ font-size:11px; color:var(--text-muted); font-family:"IBM Plex Mono"; }
+  .outcome-pill{
+    font-family:"IBM Plex Mono"; font-size:11px; font-weight:600; padding:4px 10px; border-radius:999px;
+    letter-spacing:.03em; white-space:nowrap;
+  }
+  .outcome-pill.OK{ background:var(--good-soft); color:var(--good); }
+  .outcome-pill.OUTAGE{ background:var(--critical-soft); color:var(--critical); }
+  .outcome-pill.COMPLIANCE_VIOLATION{ background:var(--hold-soft); color:var(--hold); }
+  .outcome-pill.ESCALATED{ background:var(--escalated-soft); color:var(--escalated); }
+  .outcome-pill.PENDING{ background:var(--surface-3); color:var(--text-muted); }
+
+  .panel-body{ padding:14px 16px 16px; display:flex; flex-direction:column; gap:14px; }
+
+  .stage-meter{ display:flex; flex-direction:column; gap:6px; }
+  .stage-row{ display:flex; justify-content:space-between; align-items:baseline; }
+  .stage-label{ font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--text-muted); font-weight:600; }
+  .stage-value{ font-family:"IBM Plex Mono"; font-size:19px; font-weight:600; }
+  .stage-track{ position:relative; height:10px; background:var(--surface-3); border-radius:5px; }
+  .stage-fill{ position:absolute; inset:0 auto 0 0; height:100%; border-radius:5px; background:var(--accent); transition:width .2s ease; }
+  .stage-fill.static{ background:var(--static-ink); }
+  .stage-fill.rolledback{ background:var(--critical); }
+  .stage-ticks{ position:relative; height:10px; }
+  .stage-ticks i{ position:absolute; top:0; width:1px; height:10px; background:var(--border); }
+  .stage-ticks span{ position:absolute; top:12px; transform:translateX(-50%); font-size:9.5px; color:var(--text-muted); font-family:"IBM Plex Mono"; }
+
+  .belief-list{ display:flex; flex-direction:column; gap:6px; }
+  .belief-row{
+    display:flex; align-items:center; gap:8px; font-size:12px; padding:7px 9px;
+    background:var(--surface-2); border-radius:7px; border:1px solid transparent;
+  }
+  .belief-dot{ width:7px; height:7px; border-radius:50%; flex-shrink:0; background:var(--good); }
+  .belief-row.broken{ border-color:var(--critical); background:var(--critical-soft); }
+  .belief-row.broken .belief-dot{ background:var(--critical); }
+  .belief-row.watch{ border-color:var(--hold); }
+  .belief-row.watch .belief-dot{ background:var(--hold); }
+  .belief-text{ color:var(--text-secondary); flex:1; }
+  .belief-row.broken .belief-text{ color:var(--text-primary); }
+  .belief-count{ font-family:"IBM Plex Mono"; font-size:10.5px; color:var(--text-muted); }
+  .static-note{
+    font-size:12px; color:var(--text-muted); font-style:italic; padding:9px; background:var(--surface-2);
+    border-radius:7px; border:1px dashed var(--border);
+  }
+
+  .metrics{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .metric{ background:var(--surface-2); border-radius:8px; padding:9px 10px; }
+  .metric-head{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px; }
+  .metric-name{ font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); font-weight:600; }
+  .metric-val{ font-family:"IBM Plex Mono"; font-size:12.5px; font-weight:600; }
+  .metric svg{ display:block; width:100%; height:30px; overflow:visible; }
+
+  .trace-log{ display:flex; flex-direction:column; gap:5px; max-height:340px; overflow-y:auto; padding-right:2px; }
+  .trace-row{ display:flex; gap:9px; font-size:12px; padding:6px 8px; border-radius:7px; align-items:flex-start; line-height:1.5; }
+  .trace-row .t{ font-family:"IBM Plex Mono"; color:var(--text-muted); flex-shrink:0; width:34px; padding-top:1px; }
+  .trace-row .body{ flex:1; color:var(--text-secondary); }
+  .trace-row .obs{ font-family:"IBM Plex Mono"; font-size:10.5px; color:var(--text-muted); display:block; margin-top:2px; }
+  .trace-row.changed{ background:var(--accent-soft); }
+  .trace-row.changed .t{ color:var(--accent); font-weight:700; }
+  .trace-row.changed .body{ color:var(--text-primary); font-weight:500; }
+  .trace-row.static-mode .body{ color:var(--text-muted); }
+  .trace-empty{ font-size:12px; color:var(--text-muted); font-style:italic; padding:10px 0; }
+
+  .outcome-strip{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    box-shadow:var(--shadow); padding:16px; display:none; gap:16px; align-items:center; flex-wrap:wrap;
+  }
+  .outcome-strip.show{ display:flex; }
+  .outcome-strip .lead{ font-size:13px; color:var(--text-secondary); flex:1; min-width:220px; line-height:1.5; }
+  .outcome-strip .lead b{ color:var(--text-primary); }
+  .outcome-compare{ display:flex; gap:10px; }
+  .outcome-card{ display:flex; flex-direction:column; gap:4px; padding:9px 14px; border-radius:8px; background:var(--surface-2); min-width:130px; }
+  .outcome-card .who{ font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); font-weight:600; }
+
+  footer{ text-align:center; color:var(--text-muted); font-size:11.5px; margin-top:8px; line-height:1.6; }
+  footer a{ color:var(--text-secondary); }
+  .error-banner{
+    display:none; background:var(--critical-soft); color:var(--critical); border:1px solid var(--critical);
+    border-radius:var(--radius); padding:12px 16px; font-size:13px;
+  }
+  .error-banner.show{ display:block; }
+
+  @media (prefers-reduced-motion: reduce){ *{ transition:none !important; animation:none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="console-header">
+    <div>
+      <p class="brand-eyebrow">plan &rarr; execute &rarr; observe &rarr; revise</p>
+      <h1 class="brand-title">Adaptive Rollout Console</h1>
+      <p class="brand-sub">Two agents run the identical staged rollout plan against the identical event
+        stream, computed on the server by the actual <span class="mono">adaptive_agent.py</span> engine
+        over a JSON API, not a browser re-implementation. The static agent executes on schedule and never
+        looks up; the adaptive agent checks its assumptions on every observation and only revises the plan
+        when one of them actually breaks.</p>
+    </div>
+    <div class="service-tag"><span class="dot" id="status-dot"></span> <span id="status-text">payments-service &middot; v2.4.0 canary</span></div>
+  </header>
+
+  <div class="error-banner" id="error-banner"></div>
+
+  <section class="scenario-row">
+    <span class="row-label">Scenario</span>
+    <div class="tabs" id="tabs" role="tablist"></div>
+    <p class="scenario-summary" id="scenario-summary">Loading scenarios from the API...</p>
+  </section>
+
+  <section class="controls">
+    <div class="transport">
+      <button class="btn" id="btn-reset" title="Reset to t=0">&#8617; Reset</button>
+      <button class="btn" id="btn-step" title="Advance one tick">Step</button>
+      <button class="btn primary" id="btn-play">&#9654; Play</button>
+      <button class="btn" id="btn-end" title="Jump to the end">Skip to end</button>
+    </div>
+    <div class="sep"></div>
+    <select class="speed-select" id="speed">
+      <option value="900">0.5&times; speed</option>
+      <option value="550" selected>1&times; speed</option>
+      <option value="260">2&times; speed</option>
+      <option value="90">4&times; speed</option>
+    </select>
+    <div class="sep"></div>
+    <div class="toggle-group">
+      <span class="toggle-label">Containment (hysteresis + governor)</span>
+      <button class="toggle on" id="toggle-hysteresis" role="switch" aria-checked="true"><span class="knob"></span></button>
+    </div>
+    <div class="tick-readout">
+      <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+      <span>t = <span class="n" id="tick-now">0</span> / <span id="tick-total">0</span></span>
+    </div>
+    <p class="live-note" id="live-note">Each run is computed server-side in one request, then revealed here
+      tick by tick to show what the agent saw and did at each step, it is not polled on a fixed timer.</p>
+  </section>
+
+  <section class="panels">
+    <article class="panel" id="panel-adaptive">
+      <div class="panel-head">
+        <div class="panel-title">
+          <span class="agent-chip adaptive"></span>
+          <div><h3>Adaptive agent</h3><div class="kicker">checks assumptions every tick</div></div>
+        </div>
+        <span class="outcome-pill PENDING" id="outcome-adaptive">PENDING</span>
+      </div>
+      <div class="panel-body">
+        <div class="stage-meter">
+          <div class="stage-row"><span class="stage-label">Traffic on v2.4.0</span><span class="stage-value mono" id="stage-val-adaptive">0%</span></div>
+          <div class="stage-track"><div class="stage-fill" id="stage-fill-adaptive" style="width:0%"></div></div>
+          <div class="stage-ticks">
+            <i style="left:5%"></i><span style="left:5%">5</span>
+            <i style="left:25%"></i><span style="left:25%">25</span>
+            <i style="left:50%"></i><span style="left:50%">50</span>
+            <i style="left:100%"></i><span style="left:97%">100</span>
+          </div>
+        </div>
+        <div class="belief-list" id="beliefs-adaptive"></div>
+        <div class="metrics">
+          <div class="metric"><div class="metric-head"><span class="metric-name">Error rate</span><span class="metric-val mono" id="err-val-adaptive">--</span></div><svg id="err-spark-adaptive" viewBox="0 0 100 30" preserveAspectRatio="none"></svg></div>
+          <div class="metric"><div class="metric-head"><span class="metric-name">p99 latency</span><span class="metric-val mono" id="lat-val-adaptive">--</span></div><svg id="lat-spark-adaptive" viewBox="0 0 100 30" preserveAspectRatio="none"></svg></div>
+        </div>
+        <div>
+          <span class="row-label">Trace</span>
+          <div class="trace-log" id="trace-adaptive" style="margin-top:8px;"><p class="trace-empty">Loading...</p></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="panel" id="panel-static">
+      <div class="panel-head">
+        <div class="panel-title">
+          <span class="agent-chip static"></span>
+          <div><h3>Static baseline</h3><div class="kicker">fixed schedule, never checks</div></div>
+        </div>
+        <span class="outcome-pill PENDING" id="outcome-static">PENDING</span>
+      </div>
+      <div class="panel-body">
+        <div class="stage-meter">
+          <div class="stage-row"><span class="stage-label">Traffic on v2.4.0</span><span class="stage-value mono" id="stage-val-static">0%</span></div>
+          <div class="stage-track"><div class="stage-fill static" id="stage-fill-static" style="width:0%"></div></div>
+          <div class="stage-ticks">
+            <i style="left:5%"></i><span style="left:5%">5</span>
+            <i style="left:25%"></i><span style="left:25%">25</span>
+            <i style="left:50%"></i><span style="left:50%">50</span>
+            <i style="left:100%"></i><span style="left:97%">100</span>
+          </div>
+        </div>
+        <p class="static-note">Same assumptions exist in principle, this agent simply never evaluates them
+          against what it observes.</p>
+        <div class="metrics">
+          <div class="metric"><div class="metric-head"><span class="metric-name">Error rate</span><span class="metric-val mono" id="err-val-static">--</span></div><svg id="err-spark-static" viewBox="0 0 100 30" preserveAspectRatio="none"></svg></div>
+          <div class="metric"><div class="metric-head"><span class="metric-name">p99 latency</span><span class="metric-val mono" id="lat-val-static">--</span></div><svg id="lat-spark-static" viewBox="0 0 100 30" preserveAspectRatio="none"></svg></div>
+        </div>
+        <div>
+          <span class="row-label">Trace</span>
+          <div class="trace-log" id="trace-static" style="margin-top:8px;"><p class="trace-empty">Loading...</p></div>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <section class="outcome-strip" id="outcome-strip">
+    <p class="lead" id="outcome-lead"></p>
+    <div class="outcome-compare">
+      <div class="outcome-card"><span class="who">Adaptive</span><span class="outcome-pill PENDING" id="final-adaptive">--</span></div>
+      <div class="outcome-card"><span class="who">Static</span><span class="outcome-pill PENDING" id="final-static">--</span></div>
+    </div>
+  </section>
+
+  <footer>Served by a Flask API (<span class="mono">app.py</span>) calling the real
+    <span class="mono">run_static</span> / <span class="mono">run_adaptive</span> functions in
+    <span class="mono">adaptive_agent.py</span> over <span class="mono">/api/run</span>, no engine logic
+    is duplicated in this page. Source: <span class="mono">github.com/LamStack/TheAdaptiveAgent</span></footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var state = {
+    scenarios: [],
+    scenarioId: null,
+    hysteresis: true,
+    reveal: 0,
+    playing: false,
+    timer: null,
+    speed: 550,
+    adaptiveRun: null,
+    staticRun: null,
+    loading: false
+  };
+
+  var els = {
+    tabs: document.getElementById("tabs"),
+    summary: document.getElementById("scenario-summary"),
+    btnPlay: document.getElementById("btn-play"),
+    btnStep: document.getElementById("btn-step"),
+    btnReset: document.getElementById("btn-reset"),
+    btnEnd: document.getElementById("btn-end"),
+    speed: document.getElementById("speed"),
+    toggleHyst: document.getElementById("toggle-hysteresis"),
+    liveNote: document.getElementById("live-note"),
+    tickNow: document.getElementById("tick-now"),
+    tickTotal: document.getElementById("tick-total"),
+    progressFill: document.getElementById("progress-fill"),
+    outcomeStrip: document.getElementById("outcome-strip"),
+    outcomeLead: document.getElementById("outcome-lead"),
+    finalAdaptive: document.getElementById("final-adaptive"),
+    finalStatic: document.getElementById("final-static"),
+    statusDot: document.getElementById("status-dot"),
+    statusText: document.getElementById("status-text"),
+    errorBanner: document.getElementById("error-banner")
+  };
+
+  function showError(msg){
+    els.errorBanner.textContent = msg;
+    els.errorBanner.classList.add("show");
+  }
+  function clearError(){
+    els.errorBanner.classList.remove("show");
+  }
+
+  function currentScenario(){
+    for (var i=0;i<state.scenarios.length;i++){ if (state.scenarios[i].id===state.scenarioId) return state.scenarios[i]; }
+    return null;
+  }
+
+  function buildTabs(){
+    els.tabs.innerHTML = "";
+    state.scenarios.forEach(function(sc){
+      var b = document.createElement("button");
+      b.className = "tab" + (sc.id===state.scenarioId ? " active" : "");
+      b.setAttribute("role","tab");
+      b.innerHTML = sc.title + (sc.id==="flapping_noise" ? " <span class='badge'>FAILURE TEST</span>" : "");
+      b.addEventListener("click", function(){ selectScenario(sc.id); });
+      els.tabs.appendChild(b);
+    });
+  }
+
+  function selectScenario(id){
+    state.scenarioId = id;
+    buildTabs();
+    var sc = currentScenario();
+    els.summary.textContent = sc ? sc.summary : "";
+    recompute();
+  }
+
+  function normalizeRun(json){
+    return {
+      outcome: json.outcome,
+      revisions: json.revisions || [],
+      trace: (json.trace || []).map(function(e){
+        var changed = e.note.indexOf("I changed my mind") !== -1 || e.note.indexOf("resumed because") !== -1;
+        return {
+          t: e.tick,
+          obs: e.observation,
+          stagePct: e.stage_pct,
+          rolledBack: e.rolled_back,
+          note: e.note,
+          changed: changed,
+          beliefs: (e.beliefs || []).map(function(b){
+            return {
+              id: b.assumption_id, description: b.description, broken: b.broken,
+              consecutiveBreaches: b.consecutive_breaches, breachesToTrigger: b.breaches_to_trigger
+            };
+          })
+        };
+      })
+    };
+  }
+
+  function setBusy(busy){
+    state.loading = busy;
+    els.statusDot.classList.toggle("busy", busy);
+    els.statusText.textContent = busy ? "computing on server..." : "payments-service · v2.4.0 canary";
+  }
+
+  function recompute(){
+    stopPlaying();
+    var sc = currentScenario();
+    if (!sc) return;
+    clearError();
+    setBusy(true);
+    state.adaptiveRun = null;
+    state.staticRun = null;
+    state.reveal = 0;
+    els.tickTotal.textContent = sc.ticks;
+    render();
+
+    var h = state.hysteresis ? 1 : 0;
+    var reqId = state.scenarioId + ":" + state.hysteresis;
+    state._reqId = reqId;
+
+    Promise.all([
+      fetch("/api/run?scenario=" + encodeURIComponent(sc.id) + "&agent=adaptive&hysteresis=" + h).then(function(r){ return r.json(); }),
+      fetch("/api/run?scenario=" + encodeURIComponent(sc.id) + "&agent=static").then(function(r){ return r.json(); })
+    ]).then(function(results){
+      if (state._reqId !== reqId) return; // a newer request superseded this one
+      var a = results[0], s = results[1];
+      if (a.error || s.error){ throw new Error(a.error || s.error); }
+      state.adaptiveRun = normalizeRun(a);
+      state.staticRun = normalizeRun(s);
+      setBusy(false);
+      render();
+    }).catch(function(err){
+      if (state._reqId !== reqId) return;
+      setBusy(false);
+      showError("Could not reach the API: " + err.message + ". If you are running this locally, start it with: python app.py");
+    });
+  }
+
+  function stepForward(){
+    var sc = currentScenario();
+    if (!sc || !state.adaptiveRun) return;
+    if (state.reveal >= sc.ticks){ stopPlaying(); return; }
+    state.reveal += 1;
+    render();
+    if (state.reveal >= sc.ticks) stopPlaying();
+  }
+
+  function play(){
+    if (state.playing || !state.adaptiveRun) return;
+    var sc = currentScenario();
+    if (state.reveal >= sc.ticks) state.reveal = 0;
+    state.playing = true;
+    els.btnPlay.innerHTML = "&#10074;&#10074; Pause";
+    state.timer = setInterval(stepForward, state.speed);
+  }
+  function stopPlaying(){
+    state.playing = false;
+    els.btnPlay.innerHTML = "&#9654; Play";
+    if (state.timer){ clearInterval(state.timer); state.timer = null; }
+  }
+
+  els.btnPlay.addEventListener("click", function(){ state.playing ? stopPlaying() : play(); });
+  els.btnStep.addEventListener("click", function(){ stopPlaying(); stepForward(); });
+  els.btnReset.addEventListener("click", function(){ stopPlaying(); state.reveal = 0; render(); });
+  els.btnEnd.addEventListener("click", function(){
+    stopPlaying();
+    var sc = currentScenario();
+    if (sc) state.reveal = sc.ticks;
+    render();
+  });
+  els.speed.addEventListener("change", function(){
+    state.speed = parseInt(els.speed.value, 10);
+    if (state.playing){ stopPlaying(); play(); }
+  });
+  els.toggleHyst.addEventListener("click", function(){
+    state.hysteresis = !state.hysteresis;
+    els.toggleHyst.classList.toggle("on", state.hysteresis);
+    els.toggleHyst.classList.toggle("off", !state.hysteresis);
+    els.toggleHyst.setAttribute("aria-checked", String(state.hysteresis));
+    els.liveNote.innerHTML = state.hysteresis
+      ? "Each run is computed server-side in one request, then revealed tick by tick. Containment is <b>on</b>: an assumption must fail twice in a row before the plan changes, and revisions are rate-limited."
+      : "Containment is <b>off</b>: any single contradicting observation fires a revision, with no cooldown. Watch the trace thrash on scenarios like Telemetry jitter.";
+    recompute();
+  });
+
+  function sparkPath(values, w, h, pad){
+    if (values.length===0) return {path:"", area:"", pts:[]};
+    var min = Math.min.apply(null, values), max = Math.max.apply(null, values);
+    if (min===max){ min -= 1; max += 1; }
+    var n = values.length;
+    var stepX = n>1 ? (w-2*pad)/(n-1) : 0;
+    var pts = values.map(function(v,i){
+      var x = pad + i*stepX;
+      var y = pad + (1-(v-min)/(max-min))*(h-2*pad);
+      return [x,y];
+    });
+    var path = pts.map(function(p,i){ return (i===0?"M":"L")+p[0].toFixed(1)+","+p[1].toFixed(1); }).join(" ");
+    var area = path + " L"+pts[pts.length-1][0].toFixed(1)+","+(h-pad)+" L"+pts[0][0].toFixed(1)+","+(h-pad)+" Z";
+    return {path:path, area:area, pts:pts};
+  }
+
+  function renderSpark(svgId, values, breachFlags, colorVar){
+    var svg = document.getElementById(svgId);
+    var w=100, h=30, pad=3;
+    var built = sparkPath(values, w, h, pad);
+    var color = getComputedStyle(document.body).getPropertyValue(colorVar).trim() || "#4C8DFF";
+    var crit = getComputedStyle(document.body).getPropertyValue("--critical").trim() || "#F45B69";
+    var html = "";
+    if (built.path){
+      html += '<path d="'+built.area+'" fill="'+color+'" opacity="0.14" stroke="none"></path>';
+      html += '<path d="'+built.path+'" fill="none" stroke="'+color+'" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></path>';
+      built.pts.forEach(function(p, i){
+        var isLast = i===built.pts.length-1;
+        var isBreach = breachFlags && breachFlags[i];
+        if (isLast || isBreach){
+          html += '<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="'+(isBreach?2.6:2.2)+'" fill="'+(isBreach?crit:color)+'"></circle>';
+        }
+      });
+    }
+    svg.innerHTML = html;
+  }
+
+  function beliefRowClass(b){
+    if (b.broken) return "broken";
+    if (b.consecutiveBreaches>0) return "watch";
+    return "";
+  }
+
+  function renderPanel(kind, run, reveal, sc){
+    var visible = run ? run.trace.slice(0, reveal) : [];
+    var last = visible[visible.length-1];
+    var stagePct = last ? last.stagePct : 0;
+    var rolledBack = last ? last.rolledBack : false;
+
+    document.getElementById("stage-val-"+kind).textContent = stagePct + "%";
+    var fillEl = document.getElementById("stage-fill-"+kind);
+    fillEl.style.width = stagePct + "%";
+    fillEl.classList.toggle("rolledback", rolledBack);
+
+    var done = run && reveal >= sc.ticks;
+    var pill = document.getElementById("outcome-"+kind);
+    var outcomeNow = done ? run.outcome : "PENDING";
+    pill.textContent = done ? run.outcome.replace("_"," ") : (visible.length ? "running" : (run ? "pending" : "loading"));
+    pill.className = "outcome-pill " + outcomeNow;
+
+    if (kind==="adaptive"){
+      var beliefsEl = document.getElementById("beliefs-adaptive");
+      if (!last){
+        beliefsEl.innerHTML = '<p class="trace-empty" style="padding:0;">Assumptions will appear once the run starts.</p>';
+      } else {
+        beliefsEl.innerHTML = last.beliefs.map(function(b){
+          var cnt = b.broken ? "broken &times;"+b.consecutiveBreaches : (b.consecutiveBreaches>0 ? b.consecutiveBreaches+"/"+b.breachesToTrigger : "holding");
+          return '<div class="belief-row '+beliefRowClass(b)+'"><span class="belief-dot"></span><span class="belief-text">'+b.description+'</span><span class="belief-count">'+cnt+'</span></div>';
+        }).join("");
+      }
+    }
+
+    var errVals = visible.map(function(e){ return e.obs.error_rate_pct; });
+    var errBreach = visible.map(function(e){ return e.obs.error_rate_pct > 1.0; });
+    var latVals = visible.map(function(e){ return e.obs.p99_latency_ms; });
+    var latBreach = visible.map(function(e){ return e.obs.p99_latency_ms > 260; });
+    document.getElementById("err-val-"+kind).textContent = last ? last.obs.error_rate_pct.toFixed(2)+"%" : "--";
+    document.getElementById("lat-val-"+kind).textContent = last ? last.obs.p99_latency_ms+"ms" : "--";
+    renderSpark("err-spark-"+kind, errVals, errBreach, kind==="adaptive" ? "--accent" : "--static-ink");
+    renderSpark("lat-spark-"+kind, latVals, latBreach, kind==="adaptive" ? "--accent" : "--static-ink");
+
+    var traceEl = document.getElementById("trace-"+kind);
+    if (!run){
+      traceEl.innerHTML = '<p class="trace-empty">Loading from the server...</p>';
+    } else if (!visible.length){
+      traceEl.innerHTML = '<p class="trace-empty">Press Play or Step to begin.</p>';
+    } else {
+      traceEl.innerHTML = visible.map(function(e){
+        var cls = "trace-row" + (e.changed ? " changed" : "") + (kind==="static" ? " static-mode" : "");
+        var marker = e.changed ? "&raquo;" : "&middot;";
+        var obsStr = "err "+e.obs.error_rate_pct.toFixed(2)+"% &middot; p99 "+e.obs.p99_latency_ms+"ms &middot; dep "+e.obs.dependency_health+(e.obs.freeze_active ? " &middot; FREEZE" : "");
+        return '<div class="'+cls+'"><span class="t mono">'+marker+' t'+e.t+'</span><span class="body">'+e.note+'<span class="obs">'+obsStr+'</span></span></div>';
+      }).join("");
+      traceEl.scrollTop = traceEl.scrollHeight;
+    }
+  }
+
+  function render(){
+    var sc = currentScenario();
+    if (!sc) return;
+    renderPanel("adaptive", state.adaptiveRun, state.reveal, sc);
+    renderPanel("static", state.staticRun, state.reveal, sc);
+
+    els.tickNow.textContent = state.reveal;
+    els.progressFill.style.width = (sc.ticks ? (state.reveal/sc.ticks*100) : 0) + "%";
+
+    var done = state.adaptiveRun && state.staticRun && state.reveal >= sc.ticks;
+    els.outcomeStrip.classList.toggle("show", !!done);
+    if (done){
+      var a = state.adaptiveRun, s = state.staticRun;
+      els.finalAdaptive.textContent = a.outcome.replace("_"," ");
+      els.finalAdaptive.className = "outcome-pill " + a.outcome;
+      els.finalStatic.textContent = s.outcome.replace("_"," ");
+      els.finalStatic.className = "outcome-pill " + s.outcome;
+      var revCount = a.revisions.length;
+      var lead;
+      if (a.outcome==="OK" && (s.outcome==="OUTAGE" || s.outcome==="COMPLIANCE_VIOLATION")){
+        lead = "<b>This is the before/after.</b> Both agents ran the identical plan against the identical events. The static baseline reached <b>"+s.outcome.replace("_"," ").toLowerCase()+"</b>; the adaptive agent revised its plan "+revCount+" time(s) and finished clean.";
+      } else if (a.outcome==="ESCALATED"){
+        lead = "<b>Neither agent has a fix for this.</b> The adaptive agent noticed it had no playbook and escalated to a human rather than guessing. The static baseline had no way to notice at all.";
+      } else if (a.outcome==="OK" && s.outcome==="OK" && revCount===0){
+        lead = state.hysteresis
+          ? "<b>Containment held.</b> The signal never repeated, so nothing fired: zero revisions, zero false rollbacks. Toggle containment off above to see the ungoverned version thrash on this same input."
+          : "<b>No pattern repeated.</b> Even ungoverned, a single-tick jitter alone did not happen to line up into two in a row this run.";
+      } else {
+        lead = "Run complete. Adaptive made "+revCount+" revision(s); compare the two traces above for exactly what triggered each one.";
+      }
+      els.outcomeLead.innerHTML = lead;
+    }
+
+    els.btnStep.disabled = !state.adaptiveRun || done;
+    els.btnPlay.disabled = !state.adaptiveRun;
+    if (done) stopPlaying();
+  }
+
+  fetch("/api/scenarios").then(function(r){ return r.json(); }).then(function(list){
+    state.scenarios = list;
+    if (list.length){
+      state.scenarioId = list[0].id;
+      buildTabs();
+      els.summary.textContent = list[0].summary;
+      recompute();
+    }
+  }).catch(function(err){
+    showError("Could not load scenarios from the API: " + err.message + ". If you are running this locally, start it with: python app.py");
+    els.summary.textContent = "Unable to reach the API.";
+  });
+
+})();
+</script>
+</body>
+</html>

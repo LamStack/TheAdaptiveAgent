@@ -7,11 +7,15 @@ plain-language "I changed my mind because ..." reason. When nothing
 contradicts its assumptions, it does nothing extra: there is no polling
 timer and no re-prompting on a schedule.
 
-Live interactive demo: **https://claude.ai/artifact/3ZKSUiTFvct1ukHQwiUMjo**
-(a faithful browser port of the same engine below: same thresholds, same
-hysteresis, same containment, same wording, with a side-by-side
-adaptive-vs-static view and a live containment on/off toggle for the
-failure test)
+Live demos:
+- **https://claude.ai/artifact/3ZKSUiTFvct1ukHQwiUMjo**, a self-contained
+  browser port of the same engine (identical thresholds, hysteresis,
+  containment, and trace wording), with a side-by-side adaptive-vs-static
+  view and a live containment on/off toggle for the failure test.
+- **[add your Vercel URL here after deploying]**, the real thing: a
+  Flask API (`app.py`) that calls the actual `run_static` /
+  `run_adaptive` functions below, no logic is duplicated in the browser.
+  See [Web demo](#web-demo-real-backend) to run it locally or deploy it.
 
 90-second walkthrough: **[add your Loom link here]**
 
@@ -84,6 +88,38 @@ caps how often the plan is allowed to change at all: a cooldown between
 revisions, and an automatic escalation to a human if too many revisions
 happen inside a short window, because that pattern is thrash, not signal.
 
+## Web demo (real backend)
+
+`app.py` is a thin Flask wrapper around the exact same engine: it imports
+`SCENARIOS`, `run_static`, and `run_adaptive` from `adaptive_agent.py`
+and serves them over two endpoints, `/api/scenarios` and `/api/run`. The
+page in `web/index.html` fetches from those endpoints and renders the
+same console UI as the browser demo above, so this is the identical
+experience backed by the real Python engine instead of a JavaScript
+port.
+
+Run it locally:
+
+```bash
+pip install -r requirements.txt
+python app.py
+# open http://localhost:5000
+```
+
+Deploy it to Vercel (the repo already includes `vercel.json`):
+
+```bash
+npm i -g vercel   # if you do not already have the CLI
+vercel
+```
+
+Or import the GitHub repo directly at vercel.com/new; Vercel reads
+`vercel.json` and builds `app.py` with its Python runtime automatically.
+A serverless function has no durable disk between requests, so `/api/run`
+always calls the engine with `journal=None`; SQLite persistence is
+demonstrated by the CLI (`--journal-dir`) and by
+`test_persistence_round_trips_state` in `--selftest` instead.
+
 ## Testing
 
 ```bash
@@ -100,6 +136,9 @@ actually stops it), and a round trip through the SQLite journal.
 ```
 adaptive_agent.py     the whole engine: model, world model, reasoner,
                        governor, journal, scenarios, CLI, self-test
+app.py                 Flask API wrapping the engine (no duplicated logic)
+web/index.html         frontend for app.py: fetches /api/run, renders the console
+vercel.json             build/route config so Vercel deploys app.py
 ARCHITECTURE.md        the plan -> execute -> observe -> revise loop
 FAILURE_TEST.md        the adaptation-goes-wrong scenario and its containment
 THESIS.md              two-year thesis on adaptive planning in production
