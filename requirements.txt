@@ -1,0 +1,9 @@
+# The core engine (adaptive_agent.py) has zero required dependencies.
+# It runs on the standard library alone: argparse, json, sqlite3, dataclasses.
+#
+# Optional: install this only if you want the LLM-narration mode
+# (ClaudeReasoner, active automatically when ANTHROPIC_API_KEY is set).
+# It never changes what the agent does, only the wording of the "I changed
+# my mind because ..." trace line. Without it, or if the call fails for any
+# reason, the deterministic rule-based wording is used instead.
+anthropic>=0.40.0
